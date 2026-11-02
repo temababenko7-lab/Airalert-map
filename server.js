@@ -82,13 +82,15 @@ async function srcUbilling() {
   for (const n in st) if (st[n] && st[n].alertnow) out.push({ name: n, type: 'state', level: 'red' });
   return out;
 }
+const STATUS = { lastTick: 0, tryvoha: '-', siren: '-', ubilling: '-', entries: 0 };
 async function getData() {
   let siren = null, entries = null;
-  try { siren = await getJSON('https://siren.pp.ua/api/v3/alerts'); } catch (e) {}
-  try { entries = await srcTryvoha(); } catch (e) {}
+  try { siren = await getJSON('https://siren.pp.ua/api/v3/alerts'); STATUS.siren = 'ok'; } catch (e) { STATUS.siren = e.message; }
+  try { entries = await srcTryvoha(); STATUS.tryvoha = 'ok'; } catch (e) { STATUS.tryvoha = e.message; }
   if (!entries && siren) entries = srcSiren(siren);
-  if (!entries) { try { entries = await srcUbilling(); } catch (e) {} }
+  if (!entries) { try { entries = await srcUbilling(); STATUS.ubilling = 'ok'; } catch (e) { STATUS.ubilling = e.message; } }
   if (!entries) return null;
+  STATUS.lastTick = Date.now(); STATUS.entries = entries.length;
   return { entries, others: siren ? othersFrom(siren) : [] };
 }
 
@@ -207,6 +209,13 @@ function start() {
     }));
     subs[sub.endpoint] = { sub, items: clean, t: Date.now() };
     saveSubs(); r.json({ ok: true, items: clean.length });
+  });
+  app.get('/api/status', (q, r) => r.json({ subs: Object.keys(subs).length, ...STATUS, ago: STATUS.lastTick ? Math.round((Date.now() - STATUS.lastTick) / 1000) + 's' : 'never' }));
+  app.post('/api/test', async (q, r) => {
+    const ep = q.body && q.body.endpoint, s = subs[ep];
+    if (!s) return r.status(404).json({ error: 'subscription not found on server' });
+    try { await webpush.sendNotification(s.sub, JSON.stringify({ title: 'Карта тривог', body: '🔔 Тест: push працює. Так виглядатиме повідомлення про тривогу.', tag: 'test', urgent: true }), { TTL: 120, urgency: 'high' }); r.json({ ok: true }); }
+    catch (e) { r.status(502).json({ error: 'push failed ' + (e.statusCode || e.message) }); }
   });
   app.post('/api/unsub', (q, r) => { const ep = q.body && q.body.endpoint; if (ep && subs[ep]) { delete subs[ep]; saveSubs(); } r.json({ ok: true }); });
   const files = { '/': 'index.html', '/index.html': 'index.html', '/sw.js': 'sw.js', '/manifest.json': 'manifest.json', '/icon-192.png': 'icon-192.png', '/icon-512.png': 'icon-512.png' };
