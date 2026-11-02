@@ -413,7 +413,11 @@ async function pollOther(){
 function withOther(u,eps){
   const now=Date.now(),live=POLL*5;
   const extra=(OLOG[u.i]||[]).map(x=>({started_at:new Date(x[1]).toISOString(),ended_at:now-x[2]<live?null:new Date(x[2]).toISOString(),alert_type:x[0]}));
-  return eps.concat(extra).sort((p,q)=>Date.parse(q.started_at)-Date.parse(p.started_at));
+  /* 1 листопада 2026, 22:50–23:58 (Київ, UTC+2): ложные оповещения после взлома приложения «Повітряна тривога» */
+  const kyiv=/^(м\. ?)?Київ$/.test(String(u.n).trim());
+  const INC=[{started_at:'2026-11-01T20:50:00Z',ended_at:'2026-11-01T21:58:00Z',alert_type:'radiation',fake:1}];
+  if(kyiv)INC.push({started_at:'2026-11-01T20:50:00Z',ended_at:'2026-11-01T21:58:00Z',alert_type:'chem',fake:1},{started_at:'2026-11-01T20:50:00Z',ended_at:'2026-11-01T21:58:00Z',alert_type:'street',fake:1});
+  return eps.concat(extra,INC).sort((p,q)=>Date.parse(q.started_at)-Date.parse(p.started_at));
 }
 function render(u,eps){
   eps=withOther(u,eps);
@@ -427,8 +431,9 @@ function render(u,eps){
     const on=!b,mins=b?(ep.minutes!=null?ep.minutes:(b-a)/60000):(Date.now()-a)/60000;
     const kind=epKind(ep),lv=kind==='air'?epLevel(u,ep,a,b):0;
     const cls=kind==='air'?(lv===1?'l1':lv===2?'l2':'l0'):KC[kind];
+    const fk=ep.fake?'<div class="lv" style="color:#8e93a0">Хибне сповіщення (злам застосунку)</div>':'';
     const lt=kind==='air'&&!lv?'<div class="lv" style="color:#8e93a0">Рівень невідомий</div>':kind==='air'&&lv?(lv===1?'<div class="lv" style="color:#e0c04a">Жовтий рівень</div>':'<div class="lv" style="color:#e0675a">Червоний рівень</div>'):'';
-    h+='<div class="cd'+(on?' on':'')+'" style="margin-bottom:10px"><div class="ct"><div class="ci '+cls+'">'+icon(kind)+'</div><div class="cm"><b>'+KT[kind]+'</b>'+lt+'<div class="rn">'+rn+'</div></div>'+(on?'<div class="bg">Триває</div>':'')+'</div><div class="cb"><span>'+fT(a)+' — '+(b?fT(b):'триває')+'</span><span>'+fDur(mins)+'</span></div></div>';
+    h+='<div class="cd'+(on?' on':'')+'" style="margin-bottom:10px"><div class="ct"><div class="ci '+cls+'">'+icon(kind)+'</div><div class="cm"><b>'+KT[kind]+'</b>'+lt+fk+'<div class="rn">'+rn+'</div></div>'+(on?'<div class="bg">Триває</div>':'')+'</div><div class="cb"><span>'+fT(a)+' — '+(b?fT(b):'триває')+'</span><span>'+fDur(mins)+'</span></div></div>';
   });
   pl.innerHTML=h;
 }
