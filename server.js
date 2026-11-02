@@ -218,7 +218,7 @@ function start() {
     catch (e) { r.status(502).json({ error: 'push failed ' + (e.statusCode || e.message) }); }
   });
   app.post('/api/unsub', (q, r) => { const ep = q.body && q.body.endpoint; if (ep && subs[ep]) { delete subs[ep]; saveSubs(); } r.json({ ok: true }); });
-  const files = { '/': 'index.html', '/index.html': 'index.html', '/sw.js': 'sw.js', '/manifest.json': 'manifest.json', '/icon-192.png': 'icon-192.png', '/icon-512.png': 'icon-512.png' };
+  const files = { '/': 'index.html', '/index.html': 'index.html', '/sw.js': 'sw.js', '/manifest.json': 'manifest.json', '/icon-192.png': 'icon-192.png', '/icon-512.png': 'icon-512.png', '/snd_red.mp3': 'snd_red.mp3', '/snd_yellow.mp3': 'snd_yellow.mp3', '/snd_street.mp3': 'snd_street.mp3', '/snd_chem.mp3': 'snd_chem.mp3', '/snd_rad.mp3': 'snd_rad.mp3' };
   app.get(Object.keys(files), (q, r) => r.sendFile(path.join(__dirname, files[q.path])));
   loadSubs().then(s => {
     subs = s;

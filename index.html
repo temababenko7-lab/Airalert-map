@@ -64,7 +64,7 @@ body.t-alerts #wm,body.t-useful #wm,body.t-settings #wm{display:none}
 .row>div{flex:1;min-width:0}
 .row i{color:#636366;font-style:normal;font-size:22px}
 .rc{flex:none;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center}
-.rc.ok,.big.ok{background:#3478f6}.rc.c1,.big.c1{background:#ffd60a}.rc.c2,.big.c2{background:#e0554a}
+.rc.ok,.big.ok{background:#3478f6}.rc.st{background:#4cae82}.rc.ch{background:#c27df0}.rc.ra{background:#e2cf5f}.rc.c1,.big.c1{background:#ffd60a}.rc.c2,.big.c2{background:#e0554a}
 .thr{padding:14px 16px;display:flex;align-items:center;gap:12px}
 .thr>div{flex:1}.thr b{font-size:15px;font-weight:500;display:block}
 .thr a{color:#ffd60a;font-size:13px;cursor:pointer}
@@ -641,7 +641,7 @@ $('pk').addEventListener('click',e=>{if(e.target===$('pk'))closePicker()});
 /* ----- Useful / Settings ----- */
 function renderUseful(){
   $('vu').innerHTML='<div class="wrap"><div class="sec">During an air alert</div><div class="card tips"><b>Go to the nearest shelter</b>Do not wait and do not ignore the signal.<b>No shelter nearby?</b>Choose a place where at least two walls separate you from the outside. Stay away from windows.<b>Stay until the alert is over</b>There is no separate signal when the danger ends in your region — wait for the official end of the alert.</div>'
-   +'<div class="sec">Danger levels</div><div class="card"><div class="row"><span class="rc c1">'+iconS('air',24)+'</span><div><b>Жовтий рівень</b><small>Drone threat</small></div></div><div class="row"><span class="rc c2">'+iconS('air',24)+'</span><div><b>Червоний рівень</b><small>Missile, missile-and-drone or massed drone threat</small></div></div></div>'
+   +'<div class="sec">Danger levels</div><div class="card"><div class="row"><span class="rc c1">'+iconS('air',24)+'</span><div><b>Жовтий рівень</b><small>Drone threat</small></div></div><div class="row"><span class="rc c2">'+iconS('air',24)+'</span><div><b>Червоний рівень</b><small>Missile, missile-and-drone or massed drone threat</small></div></div><div class=\"row\"><span class=\"rc st\">'+iconS('street',24)+'</span><div><b>Вуличні бої</b><small>Fighting in or near the settlement</small></div></div><div class=\"row\"><span class=\"rc ch\">'+iconS('chem',24)+'</span><div><b>Хімічна загроза</b><small>Chemical hazard in the area</small></div></div><div class=\"row\"><span class=\"rc ra\">'+iconS('rad',24)+'</span><div><b>Ядерна / радіаційна загроза</b><small>Radiation hazard in the area</small></div></div></div>'
    +'<a class="yb" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('укриття')+'">Locate the nearest bomb shelter</a></div>';
 }
 function afterPaint(){try{checkNotify()}catch(e){}
@@ -738,9 +738,12 @@ function showSys(text,tag,loud){
   try{new Notification(text,opt)}catch(e){}
 }
 /* kind: start | up | down | clear | other ; sweeps: 2 = жовтий, 4 = червоний */
-function fire(text,kind,tag,sweeps){
+const SND={red:'snd_red.mp3',yellow:'snd_yellow.mp3',street:'snd_street.mp3',chem:'snd_chem.mp3',rad:'snd_rad.mp3'};
+let CURSND=null;
+function playFile(k){try{if(CURSND)CURSND.pause();const a=new Audio(SND[k]);a.volume=1;CURSND=a;a.play().catch(()=>{})}catch(e){}}
+function fire(text,kind,tag,snd){
   if(store.get('snd',true)){try{
-    if(kind==='clear')clearSound();else if(kind==='other')otherSound();else if(kind==='down')sirenSound(2);else sirenSound(sweeps);
+    if(kind==='clear')clearSound();else if(snd)playFile(snd);
   }catch(e){}}
   try{navigator.vibrate&&navigator.vibrate(kind==='clear'?[200]:[500,200,500,200,500])}catch(e){}
   if(!store.get('push',false)&&store.get('ntf',false)&&window.Notification&&Notification.permission==='granted')showSys(text,tag,kind!=='clear');
@@ -762,19 +765,19 @@ function checkNotify(){
     if(!st){const p=prev[it.k];st=NS_[it.k]={lvl:p&&now-p.t<600000?p.lvl:lvl,pend:0,ok:{}}}
     if(lvl===st.lvl){st.pend=0}
     else if(lvl>st.lvl){
-      fire(st.lvl===0?MSG.start(it.n,lvl):MSG.up(it.n),st.lvl===0?'start':'up',it.k,lvl===1?2:4);
+      fire(st.lvl===0?MSG.start(it.n,lvl):MSG.up(it.n),st.lvl===0?'start':'up',it.k,lvl===1?'yellow':'red');
       st.lvl=lvl;st.pend=0;
     }else{
       st.pend++;
       if(st.pend>=2){
-        fire(lvl===0?MSG.clear(it.n):MSG.down(it.n),lvl===0?'clear':'down',it.k);
+        fire(lvl===0?MSG.clear(it.n):MSG.down(it.n),lvl===0?'clear':'down',it.k,'yellow');
         st.lvl=lvl;st.pend=0;
       }
     }
     const ks=otherKinds(it);
     ['street','chem','rad'].forEach(k=>{
       const on=ks.has(k),was=!!st.ok[k];
-      if(on&&!was){st.ok[k]=1;fire(MSG[k](it.n),'other',it.k+k)}
+      if(on&&!was){st.ok[k]=1;fire(MSG[k](it.n),'other',it.k+k,k)}
       else if(!on&&was){st.ok[k]=0;fire(MSG.oclear(k,it.n),'clear',it.k+k)}
     });
   });
@@ -845,7 +848,7 @@ function renderSettings(){
    +swRow('o_push','Push (works when the site is closed)','Needs the server. Sends messages for saved regions',store.get('push',false))
    +swRow('o_ntf','System notifications','Only while the page is open',store.get('ntf',false))
    +swRow('o_wake','Keep screen on','Keeps the page running so alerts keep coming',store.get('wake',false))
-   +'</div><button class="lk" id="ptest">Test push from server</button><button class="lk" id="psrv">Server address: '+(PUSHURL()||'this site')+'</button><button class="lk" id="t3">Test: yellow level</button><button class="lk" id="t1">Test: red level</button><button class="lk" id="t4">Test: chemical threat</button><button class="lk" id="t2">Test: all clear</button>'
+   +'</div><button class="lk" id="ptest">Test push from server</button><button class="lk" id="psrv">Server address: '+(PUSHURL()||'this site')+'</button>'
    +'<div class="ver" style="text-align:left;margin:0 6px 4px">Siren works while this page is open. With Push on, messages also arrive when the site is closed. Only regions saved on the Alerts tab.</div>'
    +'<div class="sec">Regions</div><div class="card"><div class="row" style="cursor:default"><div><b>Saved regions</b><small>'+SAVED.length+'</small></div></div></div><button class="lk red" id="s1">Remove all saved regions</button>'
    +'<div class="sec">Data on this device</div><button class="lk red" id="s2">Reset alert level log</button><div class="ver">Version alert-map</div></div>';
@@ -876,10 +879,6 @@ function renderSettings(){
   };
   $('psrv').onclick=()=>{const v=prompt('Server address (empty = this site), e.g. https://alert-push.onrender.com',PUSHURL());if(v!==null){store.set('pushurl',v.trim());renderSettings()}};
   $('o_wake').onchange=e=>{store.set('wake',e.target.checked);wake(e.target.checked)};
-  $('t1').onclick=()=>{ac();fire(MSG.start('Кропивницький район',2),'start','test',3)};
-  $('t2').onclick=()=>{ac();fire(MSG.clear('Кропивницький район'),'clear','test')};
-  $('t3').onclick=()=>{ac();fire(MSG.yellow('Кропивницький район'),'start','test',2)};
-  $('t4').onclick=()=>{ac();fire(MSG.chem('Кропивницький район'),'other','test')};
   $('s1').onclick=()=>{if(confirm('Remove all saved regions?')){SAVED=[];store.set('saved',SAVED);renderSettings()}};
   $('s2').onclick=()=>{if(confirm('Reset the alert level and threat log?')){LOG={};OLOG={};try{localStorage.removeItem('lvlog');localStorage.removeItem('olog')}catch(e){}}};
 }
